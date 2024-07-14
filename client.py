@@ -5,6 +5,8 @@ import os
 import pandas as pd
 import numpy as np
 import shutil
+import glob
+from concurrent.futures import ThreadPoolExecutor
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
@@ -14,7 +16,7 @@ from keras.models import Model
 from keras.layers import Dense, Flatten, Dropout, Input, Concatenate
 from keras.optimizers import Adam
 
-# Directories for image data
+# multi-cancer datasets
 breast_cancer_path = "/kaggle/input/multi-cancer/Multi Cancer/Breast Cancer/"
 benign_dir = os.path.join(breast_cancer_path, 'breast_benign')
 malignant_dir = os.path.join(breast_cancer_path, 'breast_malignant')
@@ -22,34 +24,96 @@ malignant_dir = os.path.join(breast_cancer_path, 'breast_malignant')
 train_dir = '/kaggle/breast_cancer/training_data'
 val_dir = '/kaggle/breast_cancer/validation_data'
 
+histopathology_path = "/kaggle/histopathology"
+
 os.makedirs(train_dir, exist_ok=True)
 os.makedirs(val_dir, exist_ok=True)
 
 def split_copy(class_dir, train_output_dir, val_output_dir):
     images = [os.path.join(class_dir, img) for img in os.listdir(class_dir) if img.endswith(('jpg', 'jpeg', 'png'))]
+
     train_images, val_images = train_test_split(images, test_size=0.2, random_state=42)
+
     os.makedirs(train_output_dir, exist_ok=True)
     os.makedirs(val_output_dir, exist_ok=True)
+
     for img in train_images:
         shutil.copyfile(img, os.path.join(train_output_dir, os.path.basename(img)))
+
     for img in val_images:
         shutil.copyfile(img, os.path.join(val_output_dir, os.path.basename(img)))
 
+# Split multi-cancer images
 split_copy(benign_dir, os.path.join(train_dir, 'breast_benign'), os.path.join(val_dir, 'breast_benign'))
 split_copy(malignant_dir, os.path.join(train_dir, 'breast_malignant'), os.path.join(val_dir, 'breast_malignant'))
 
+# histopathology images
+input_path = '/kaggle/input/breast-histopathology-images'
+
+idc_dir = os.path.join(histopathology_path, 'idc')
+non_idc_dir = os.path.join(histopathology_path, 'non_idc')
+
+# Create directories if they do not exist
+os.makedirs(idc_dir, exist_ok=True)
+os.makedirs(non_idc_dir, exist_ok=True)
+
+# Get list of image paths
+breast_imgs = glob.glob(os.path.join(input_path, '*/*/*'))
+
+# Filter image patches
+imagePatches = [img for img in breast_imgs if 'IDC' not in img]
+
+def copy_image(img):
+    if img[-5] == '0':
+        shutil.copyfile(img, os.path.join(non_idc_dir, os.path.basename(img)))
+    elif img[-5] == '1':
+        shutil.copyfile(img, os.path.join(idc_dir, os.path.basename(img)))
+
+# Use ThreadPoolExecutor to parallelize copying files
+with ThreadPoolExecutor() as executor:
+    executor.map(copy_image, imagePatches)
+
+# Split histopathology images
+split_copy(idc_dir, os.path.join(train_dir, 'idc'), os.path.join(val_dir, 'idc'))
+split_copy(non_idc_dir, os.path.join(train_dir, 'non_idc'), os.path.join(val_dir, 'non_idc'))
+
+
+def countingFilesInDirectory(directory):
+    counts = {}
+    for subdirectory in os.listdir(directory):
+        subdirectory_path = os.path.join(directory, subdirectory)
+        if os.path.exists(subdirectory_path) and os.path.isdir(subdirectory_path):
+            # Count the number of files in the subdirectory
+            file_count = len([f for f in os.listdir(subdirectory_path) if os.path.isfile(os.path.join(subdirectory_path, f))])
+            counts[subdirectory] = file_count
+    return counts
+
+print(countingFilesInDirectory(train_dir))
+print(countingFilesInDirectory(val_dir))
+
 # Load CSV data
 def load_data_csv():
-    wisconsin_df = pd.read_csv("/kaggle/input/breast-cancer-wisconsin-data/Breast Cancer Wisconsin.csv")
-    wisconsin_df.drop(columns=['id', 'Unnamed: 32'], inplace=True)
+    # Load the dataset
+    wisconsin_df = pd.read_csv("/kaggle/input/breast-cancer/data.csv")
+    
+    # Drop unnecessary columns
+    wisconsin_df.drop(columns=['Unnamed: 32', 'id'], inplace=True)
+    
+    # Encode the 'diagnosis' column
     wisconsin_df['diagnosis'] = LabelEncoder().fit_transform(wisconsin_df['diagnosis'])
+    
+    # Separate features and labels
     features = wisconsin_df.drop(columns=['diagnosis'])
     labels = wisconsin_df['diagnosis']
     
+    # Split the data into training and testing sets
     train_data, test_data, train_labels, test_labels = train_test_split(features, labels, test_size=0.2, random_state=42)
-
+    
+    # Convert to numpy arrays
     train_data = train_data.to_numpy()
     test_data = test_data.to_numpy()
+    
+    # One-hot encode the labels
     train_labels = to_categorical(train_labels, num_classes=2)
     test_labels = to_categorical(test_labels, num_classes=2)
     
@@ -68,6 +132,7 @@ def load_data():
         fill_mode='nearest'
     )
     val_datagen = ImageDataGenerator(rescale=1./255)
+    
     train_generator = train_datagen.flow_from_directory(
         train_dir,
         target_size=(224, 224),
