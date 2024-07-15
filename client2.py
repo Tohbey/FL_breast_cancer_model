@@ -20,6 +20,15 @@ from torchvision import transforms
 import cv2
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+from keras.applications.vgg16 import VGG16
+from keras.models import Model
+from keras.layers import Dense, Flatten, Dropout, Input, Concatenate
+from keras.optimizers import Adam
+
+from utils import countingFilesInDirectory, plotClientData, split_copy
+
+results_list = []
+
 
 # DDSM_Mammography_Datasets
 mammography_breast_cancer_path = '/kaggle/input/ddsm-mammography'
@@ -114,36 +123,11 @@ filenames = [
 for file in filenames:
     read_data(file)
 
-def split_copy(class_dir, train_output_dir, val_output_dir):
-    images = [os.path.join(class_dir, img) for img in os.listdir(class_dir) if img.endswith(('jpg', 'jpeg', 'png'))]
-
-    train_images, val_images = train_test_split(images, test_size=0.2, random_state=42)
-
-    os.makedirs(train_output_dir, exist_ok=True)
-    os.makedirs(val_output_dir, exist_ok=True)
-
-    for img in train_images:
-        shutil.copyfile(img, os.path.join(train_output_dir, os.path.basename(img)))
-
-    for img in val_images:
-        shutil.copyfile(img, os.path.join(val_output_dir, os.path.basename(img)))
-
 split_copy(negative_path, os.path.join(train_dir, 'negative'), os.path.join(val_dir, 'negative'))
 split_copy(benign_classification_path, os.path.join(train_dir, 'benign_classification'), os.path.join(val_dir, 'benign_classification'))
 split_copy(benign_mass_path, os.path.join(train_dir, 'benign_mass'), os.path.join(val_dir, 'benign_mass'))
 split_copy(malignant_classification_path, os.path.join(train_dir, 'malignant_classification'), os.path.join(val_dir, 'malignant_classification'))
 split_copy(malignant_mass_path, os.path.join(train_dir, 'malignant_mass'), os.path.join(val_dir, 'malignant_mass'))
-
-
-def countingFilesInDirectory(directory):
-    counts = {}
-    for subdirectory in os.listdir(directory):
-        subdirectory_path = os.path.join(directory, subdirectory)
-        if os.path.exists(subdirectory_path) and os.path.isdir(subdirectory_path):
-            # Count the number of files in the subdirectory
-            file_count = len([f for f in os.listdir(subdirectory_path) if os.path.isfile(os.path.join(subdirectory_path, f))])
-            counts[subdirectory] = file_count
-    return counts
 
 print(countingFilesInDirectory(train_dir))
 print(countingFilesInDirectory(val_dir))
@@ -352,6 +336,34 @@ def load_data():
     )
     return train_generator, validation_generator
 
+# Define the combined model
+def get_combined_model(image_shape=(224, 224, 3), num_csv_features=30, num_classes=2):
+    # Image model (VGG16)
+    base_model = VGG16(weights='imagenet', include_top=False, input_shape=image_shape)
+    for layer in base_model.layers:
+        layer.trainable = False
+    x = base_model.output
+    x = Flatten()(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(0.5)(x)
+    image_output = Dense(128, activation='relu')(x)
+    
+    # CSV model
+    csv_input = Input(shape=(num_csv_features,))
+    y = Dense(64, activation='relu')(csv_input)
+    y = Dense(32, activation='relu')(y)
+    csv_output = Dense(128, activation='relu')(y)
+    
+    # Combine models
+    combined = Concatenate()([image_output, csv_output])
+    z = Dense(128, activation='relu')(combined)
+    z = Dropout(0.5)(z)
+    z = Dense(num_classes, activation='softmax')(z)
+    
+    model = Model(inputs=[base_model.input, csv_input], outputs=z)
+    model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    return model
 
 # Flower client
 class FlowerClient2(fl.client.NumPyClient):
@@ -371,25 +383,45 @@ class FlowerClient2(fl.client.NumPyClient):
         self.model.set_weights(parameters)
 
     def fit(self, parameters, config):
+        # Update local model parameters
         self.set_parameters(parameters)
-        self.model.fit(
+        
+        # Train the model using hyperparameters from config
+        history = self.model.fit(
             [self.train_img_gen.next()[0], self.train_csv], self.train_csv_labels, 
             epochs=1, batch_size=32, verbose=0
         )
-        return self.get_parameters(), len(self.train_csv), {}
+        
+        # Return updated model parameters and results
+        parameters_prime = self.get_parameters()
+        num_examples_train = len(self.x_train)
+        results = {
+            "loss": history.history["loss"][0],
+            "accuracy": history.history["accuracy"][0],
+            "val_loss": history.history["val_loss"][0],
+            "val_accuracy": history.history["val_accuracy"][0],
+        }
+        print("Local Training Metrics on client 2: {}".format(results))
+        results_list.append(results)
+        return parameters_prime, num_examples_train, results
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         loss, accuracy = self.model.evaluate(
             [self.val_img_gen.next()[0], self.val_csv], self.val_csv_labels
         )
-        return loss, len(self.val_csv), {"accuracy": accuracy}
+        num_examples_test = len(self.val_csv)
+        
+        print("Evaluation accuracy on Client 2 after weight aggregation : ", accuracy)
+        return loss, num_examples_test, {"accuracy": accuracy}
 
 # Load data
 train_generator, val_generator = load_data()
 
-# # Create model
-# model = get_model()
+# Create model
+model = get_combined_model()
 
 # # Start Flower client
 # fl.client.start_numpy_client(server_address="127.0.0.1:8080", client=FlowerClient2(model, x_train, y_train, x_test, y_test))
+
+plotClientData(results_list)
