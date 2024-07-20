@@ -24,7 +24,6 @@ from keras.applications.vgg16 import VGG16
 from keras.models import Model
 from keras.layers import Dense, Flatten, Dropout, Input, Concatenate
 from keras.optimizers import Adam
-
 from utils import countingFilesInDirectory, plotClientData, split_copy
 
 results_list = []
@@ -128,6 +127,67 @@ split_copy(benign_classification_path, os.path.join(train_dir, 'benign_classific
 split_copy(benign_mass_path, os.path.join(train_dir, 'benign_mass'), os.path.join(val_dir, 'benign_mass'))
 split_copy(malignant_classification_path, os.path.join(train_dir, 'malignant_classification'), os.path.join(val_dir, 'malignant_classification'))
 split_copy(malignant_mass_path, os.path.join(train_dir, 'malignant_mass'), os.path.join(val_dir, 'malignant_mass'))
+
+# Breast histopathology datasets
+# New destination directory
+destination_dir = '/client2/histopathological'
+
+# Function to copy specific folders to a new location
+def copy_images(src_base_dir, dest_dir, subdirs, magnifications):
+    os.makedirs(dest_dir, exist_ok=True)
+    for subdir in subdirs:
+        dest_folder = os.path.join(dest_dir, subdir)
+        sub_subdir = os.listdir(os.path.join(src_base_dir, subdir))
+        os.makedirs(dest_folder, exist_ok=True)
+        for case in sub_subdir:
+            for mag in magnifications:
+                src_folder = os.path.join(src_base_dir, subdir, case, mag)
+                if os.path.exists(src_folder):
+                    for filename in os.listdir(src_folder):
+                        src_file = os.path.join(src_folder, filename)
+                        dest_file = os.path.join(dest_folder, filename)
+                        shutil.copy2(src_file, dest_file)
+                else:
+                    print(f"Folder {src_folder} does not exist.")
+
+
+# Step 3: Copy the relevant directories to the new location
+source_dir = './BreaKHis_v1/histology_slides/breast'
+# folders_to_copy = ['benign/SOB', 'malignant/SOB']
+
+# Define the specific subdirectories and magnifications
+subdirs_beg = ['adenosis', 'fibroadenoma', 'phyllodes_tumor', 'tubular_adenoma']
+magnifications = ['40X', '100X', '200X', '400X']
+
+subdirs_mal = ['ductal_carcinoma', 'lobular_carcinoma', 'mucinous_carcinoma', 'papillary_carcinoma']
+magnifications = ['40X', '100X', '200X', '400X']
+
+copy_images(source_dir+'/benign/SOB', destination_dir+'/benign', subdirs_beg, magnifications)
+copy_images(source_dir+'/malignant/SOB', destination_dir+'/malignant', subdirs_mal, magnifications)
+
+# benign category
+adenosis_path = os.path.join(destination_dir+'/benign/adenosis')
+fibroadenoma_classification_path = os.path.join(destination_dir+'/benign/fibroadenoma')
+phyllodes_tumor_path = os.path.join(destination_dir+'/benign/phyllodes_tumor')
+tubular_adenoma_path = os.path.join(destination_dir+'/benign/tubular_adenoma')
+
+# malignant
+ductal_carcinoma_path = os.path.join(destination_dir+'/malignant/ductal_carcinoma')
+lobular_carcinoma_path = os.path.join(destination_dir+'/malignant/lobular_carcinoma')
+mucinous_carcinoma_path = os.path.join(destination_dir+'/malignant/mucinous_carcinoma')
+papillary_carcinoma_path = os.path.join(destination_dir+'/malignant/papillary_carcinoma')
+
+# benign split 
+split_copy(adenosis_path, os.path.join(train_dir, 'adenosis'), os.path.join(val_dir, 'adenosis'))
+split_copy(fibroadenoma_classification_path, os.path.join(train_dir, 'fibroadenoma'), os.path.join(val_dir, 'fibroadenoma'))
+split_copy(phyllodes_tumor_path, os.path.join(train_dir, 'phyllodes_tumor'), os.path.join(val_dir, 'phyllodes_tumor'))
+split_copy(tubular_adenoma_path, os.path.join(train_dir, 'tubular_adenoma'), os.path.join(val_dir, 'tubular_adenoma'))
+
+# malignant
+split_copy(ductal_carcinoma_path, os.path.join(train_dir, 'ductal_carcinoma'), os.path.join(val_dir, 'ductal_carcinoma'))
+split_copy(lobular_carcinoma_path, os.path.join(train_dir, 'lobular_carcinoma'), os.path.join(val_dir, 'lobular_carcinoma'))
+split_copy(mucinous_carcinoma_path, os.path.join(train_dir, 'mucinous_carcinoma'), os.path.join(val_dir, 'mucinous_carcinoma'))
+split_copy(papillary_carcinoma_path, os.path.join(train_dir, 'papillary_carcinoma'), os.path.join(val_dir, 'papillary_carcinoma'))
 
 print(countingFilesInDirectory(train_dir))
 print(countingFilesInDirectory(val_dir))

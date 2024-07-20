@@ -1,6 +1,5 @@
 import flwr as fl
 from typing import List, Tuple
-
 from utils import plotClientData
 
 results_list = []
