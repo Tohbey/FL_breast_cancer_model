@@ -9,7 +9,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
-from sklearn.metrics import ConfusionMatrixDisplay
 
 breast_msk = pd.read_csv('breast_msk_2018_clinical_data.tsv',sep='\t')
 breast_msk.drop(columns = ['Study ID', 'Patient ID', 'Sample ID', 'Cancer Type',
@@ -79,18 +78,16 @@ columns_to_encode = [
         'Patient\'s Vital Status',
 ]
 
-# Drop rows with any missing values
-breast_msk = breast_msk.dropna()
-
 print(breast_msk['Cancer Type Detailed'].value_counts())
+print(breast_msk.shape)
 
 # removing invalid cancer type
 breast_msk = breast_msk[breast_msk['Cancer Type Detailed'] != 'Breast']
 
-# Perform label encoding
+# # Perform label encoding
 breast_msk, label_encoders = label_encode_columns(breast_msk, columns_to_encode)
     
-## Dropping unwanted rows
+# ## Dropping unwanted rows
 columns_encoded = [
     'ER PCT Primary',
     'ER Status of Sequenced Sample', 
@@ -153,6 +150,7 @@ mapper={
     'Adenoid Cystic Breast Cancer': 7,
 }
 breast_msk['Cancer Type Detailed'] = breast_msk['Cancer Type Detailed'].map(mapper)
+breast_msk = breast_msk.dropna()
 
 # Separate features and labels
 features = breast_msk.drop(columns=['Cancer Type Detailed'])
