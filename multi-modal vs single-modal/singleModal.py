@@ -84,10 +84,10 @@ print(breast_msk.shape)
 # removing invalid cancer type
 breast_msk = breast_msk[breast_msk['Cancer Type Detailed'] != 'Breast']
 
-# # Perform label encoding
+# Perform label encoding
 breast_msk, label_encoders = label_encode_columns(breast_msk, columns_to_encode)
     
-# ## Dropping unwanted rows
+## Dropping unwanted rows
 columns_encoded = [
     'ER PCT Primary',
     'ER Status of Sequenced Sample', 
