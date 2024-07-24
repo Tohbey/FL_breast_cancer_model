@@ -47,7 +47,7 @@ strategy = CustomFedAvg(aggregate_fn=aggregate)
 if __name__ == "__main__":
     fl.server.start_server(
         server_address="0.0.0.0:8080",
-        config={"num_rounds": 5},
+        config={"num_rounds": 10},
         strategy=strategy
     )
 
