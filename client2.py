@@ -359,16 +359,162 @@ def load_data_csv():
     full_mass_df['processed_images'] = full_mass_df['image_file_path'].apply(lambda x: image_processor(x, target_size))
     
     mapper={'MALIGNANT': 1, 'BENIGN': 0, 'BENIGN_WITHOUT_CALLBACK': 0}
-
-    XX=np.array(full_mass_df['processed_images'].tolist())
-    
+        
     # List of columns to drop
-    columns_to_drop = ['patient_id', 'abnormality_id','assessment','subtlety']
+    columns_to_drop = ['patient_id', 'abnormality_id','assessment','subtlety', 
+                       'image_file_path',
+                       'cropped_image_file_path',
+                       'ROI_mask_file_path']
 
     # Drop the specified columns
     full_mass_df = full_mass_df.drop(columns=columns_to_drop)
-    print(full_mass_df.head())
-                
+    full_mass_df['pathology'] = full_mass_df['pathology'].replace(mapper)
+    
+    # Separate features and labels
+    features = full_mass_df.drop(columns=['pathology'])
+    labels = full_mass_df['pathology']
+    
+    x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+    
+    return x_train, x_test, y_train, y_test
+    
+# def load_csv_2():
+#     breast_msk = pd.read_csv('breast_msk_2018_clinical_data.tsv',sep='\t')
+#     breast_msk.drop(columns = ['Study ID', 'Patient ID', 'Sample ID', 'Cancer Type',
+#                                'Tumor Tissue Origin', 'Tumor Sample Histology', 'Somatic Status', 
+#                                'Site of Sample', 'Oncotree Code'], inplace = True)
+    
+#     def label_encode_columns(df, columns):
+#         """
+#         Performs label encoding on specified columns of a DataFrame.
+
+#         Parameters:
+#         df (DataFrame): Input DataFrame.
+#         columns (list): List of column names to be label encoded.
+
+#         Returns:
+#         DataFrame: DataFrame with label encoded columns.
+#         """
+#         df_encoded = breast_msk.copy()
+#         label_encoders = {}
+        
+#         for col in columns:
+#             label_encoder = LabelEncoder()
+#             df_encoded[col + '_encoded'] = label_encoder.fit_transform(df[col])
+#             label_encoders[col] = label_encoder
+        
+#         return df_encoded, label_encoders
+    
+#     columns_to_encode = [ 
+#         'ER Status of Sequenced Sample', 
+#         'ER Status of the Primary',  
+#         'HER2 FISH Status of Sequenced Sample', 
+#         'HER2 FISH Ratio Value of Sequenced Sample',
+#         'HER2 FISH Ratio Primary',
+#         'HER2 FISH Status (Report and ASCO) of Primary',
+#         'HER2 IHC Status Primary', 
+#         'HER2 IHC Score of Sequenced Sample', 
+#         'HER2 IHC Status of Sequenced Sample', 
+#         'HER2 IHC Score Primary', 
+#         'HER2 Primary Status', 
+#         'Overall HR Status of Sequenced Sample',  
+#         'Primary Tumor Laterality', 
+#         'Menopausal Status At Diagnosis', 
+#         'Metastatic Disease at Last Follow-up', 
+#         'Metastatic Recurrence Time', 
+#         'M Stage', 
+#         'N Stage',  
+#         'Overall Survival Status', 
+#         'Overall HER2 Status of Sequenced Sample', 
+#         'Overall Patient HER2 Status', 
+#         'Overall Patient HR Status', 
+#         'Overall Patient Receptor Status', 
+#         'Overall Primary Tumor Grade', 
+#         'Primary Nuclear Grade', 
+#         'Prior Breast Primary', 
+#         'Prior Local Recurrence', 
+#         'PR Status of Sequenced Sample', 
+#         'PR Status of the Primary', 
+#         'Receptor Status Primary', 
+#         'Number of Samples Per Patient', 
+#         'Sample Type', 
+#         'Sex', 
+#         'Stage At Diagnosis', 
+#         'Time To Death (Months)',
+#         'TMB (nonsynonymous)',   
+#         'T Stage',
+#         'Patient\'s Vital Status',
+#     ]
+    
+#     # Perform label encoding
+#     breast_msk, label_encoders = label_encode_columns(breast_msk, columns_to_encode)
+    
+#     columns_encoded = [
+#         'ER PCT Primary',
+#         'ER Status of Sequenced Sample', 
+#         'ER Status of the Primary',  
+#         'HER2 FISH Status of Sequenced Sample', 
+#         'HER2 FISH Ratio Value of Sequenced Sample',
+#         'HER2 FISH Ratio Primary',
+#         'HER2 FISH Status (Report and ASCO) of Primary',
+#         'HER2 IHC Status Primary', 
+#         'HER2 IHC Score of Sequenced Sample', 
+#         'HER2 IHC Status of Sequenced Sample', 
+#         'HER2 IHC Score Primary', 
+#         'HER2 Primary Status', 
+#         'Overall HR Status of Sequenced Sample',  
+#         'Primary Tumor Laterality', 
+#         'Menopausal Status At Diagnosis', 
+#         'Metastatic Disease at Last Follow-up', 
+#         'Metastatic Recurrence Time', 
+#         'M Stage', 
+#         'N Stage',  
+#         'Overall Survival Status', 
+#         'Overall HER2 Status of Sequenced Sample', 
+#         'Overall Patient HER2 Status', 
+#         'Overall Patient HR Status', 
+#         'Overall Patient Receptor Status', 
+#         'Overall Primary Tumor Grade', 
+#         'Primary Nuclear Grade', 
+#         'Prior Breast Primary', 
+#         'Prior Local Recurrence',
+#         'PR PCT Primary',
+#         'PR Status of Sequenced Sample', 
+#         'PR Status of the Primary', 
+#         'Receptor Status Primary', 
+#         'Number of Samples Per Patient', 
+#         'Sample Type', 
+#         'Sex', 
+#         'Stage At Diagnosis', 
+#         'Time To Death (Months)',
+#         'TMB (nonsynonymous)',   
+#         'T Stage',
+#         'Patient\'s Vital Status',
+#     ]
+#     breast_msk.drop(columns = columns_encoded, inplace = True)
+    
+#     mapper={
+#         'Breast Invasive Ductal Carcinoma': 0, 
+#         'Breast Invasive Lobular Carcinoma': 1, 
+#         'Breast Mixed Ductal and Lobular Carcinoma': 2,
+#         'Breast Invasive Cancer, NOS ': 3,
+#         'Metaplastic Breast Cancer': 4,
+#         'Breast Invasive Mixed Mucinous Carcinoma': 5,
+#         'Invasive Breast Carcinoma': 6,
+#         'Adenoid Cystic Breast Cancer': 7
+#     }
+    
+#     breast_msk['Cancer Type Detailed'] = breast_msk['Cancer Type Detailed'].map(mapper)
+#     breast_msk = breast_msk.dropna()
+    
+#     # Separate features and labels
+#     features = breast_msk.drop(columns=['Cancer Type Detailed'])
+#     labels = breast_msk['Cancer Type Detailed']
+    
+#     x_train, x_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+    
+#     return x_train, x_test, y_train, y_test
+           
 def load_data():
     train_datagen = ImageDataGenerator(
         rescale=1./255,
@@ -478,10 +624,17 @@ class FlowerClient2(fl.client.NumPyClient):
 # Load data
 train_generator, val_generator = load_data()
 
+train_csv, val_csv, train_csv_labels, val_csv_labels = load_data_csv()
+
+# train_csv_2, val_csv_2, train_csv_labels_2, val_csv_labels_2 = load_csv_2()
+
 # Create model
 model = get_combined_model()
 
 # # Start Flower client
-# fl.client.start_numpy_client(server_address="127.0.0.1:8080", client=FlowerClient2(model, x_train, y_train, x_test, y_test))
+fl.client.start_numpy_client(
+    server_address="127.0.0.1:8080", 
+    client=FlowerClient2(model, train_generator, val_generator, train_csv, train_csv_labels, val_csv, val_csv_labels)
+)
 
 plotClientData(results_list)
