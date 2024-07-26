@@ -137,7 +137,6 @@ plt.figure(figsize=(9, 6))
 plt.title('Cancer Type Detailed', weight='bold')
 sns.countplot(x=breast_msk['Cancer Type Detailed'], palette='flare')
 plt.xticks(rotation=45, ha='right')
-plt.show()
 
 mapper={
     'Breast Invasive Ductal Carcinoma': 0, 
@@ -170,3 +169,5 @@ y_pred = model.predict(x_test)
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print("\nClassification Report:\n", classification_report(y_test, y_pred))
 print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+plt.show()
