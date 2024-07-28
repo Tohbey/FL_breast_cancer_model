@@ -20,6 +20,27 @@ def aggregate(results: List[Tuple[int, List]]):
     return aggregated_weights
 
 class CustomFedAvg(fl.server.strategy.FedAvg):
+    def aggregate_fit(
+        self,
+        rnd: int,
+        results: List[Tuple[int, List]],
+        failures: List[BaseException]
+    ) -> List:
+        if not results:
+            return []
+
+        # Use the custom aggregate function
+        aggregated_weights = aggregate(results)
+        
+        # Store the results
+        loss_aggregated = sum([num_examples * loss for num_examples, loss in results]) / sum([num_examples for num_examples, _ in results])
+        accuracy_aggregated = sum([accuracy for _, accuracy in results]) / len(results)
+        results_list.append({"round": rnd, "loss": loss_aggregated, "accuracy": accuracy_aggregated})
+
+        print(f"Round {rnd} - Loss: {loss_aggregated}, Accuracy: {accuracy_aggregated}")
+        
+        return aggregated_weights
+
     def aggregate_evaluate(
         self,
         rnd: int,
@@ -35,19 +56,19 @@ class CustomFedAvg(fl.server.strategy.FedAvg):
         # Store the results
         accuracy_aggregated = sum([accuracy for _, accuracy in results]) / len(results)
         results_list.append({"round": rnd, "loss": loss_aggregated, "accuracy": accuracy_aggregated})
-        
+
         print(f"Round {rnd} - Loss: {loss_aggregated}, Accuracy: {accuracy_aggregated}")
         
         return loss_aggregated
 
 # Define the custom strategy
-strategy = CustomFedAvg(aggregate_fn=aggregate)
+strategy = CustomFedAvg()
 
 # Start the Flower server
 if __name__ == "__main__":
     fl.server.start_server(
         server_address="0.0.0.0:8080",
-        config={"num_rounds": 10},
+        config=fl.server.ServerConfig(num_rounds=10), 
         strategy=strategy
     )
 
