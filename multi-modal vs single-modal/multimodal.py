@@ -21,8 +21,8 @@ from keras.optimizers import Adam
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 
 
-mass_case_train_path = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_train_set.csv'
-mass_case_test_path = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_test_set.csv'
+mass_case_train_path = '/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_train_set.csv'
+mass_case_test_path = '/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_test_set.csv'
 
 mass_case_train = pd.read_csv(mass_case_train_path)
 mass_case_test = pd.read_csv(mass_case_test_path)
@@ -70,8 +70,8 @@ print(mass_case_test.isna().sum())
 print(f'Shape of mass_train: {mass_case_train.shape}')
 print(f'Shape of mass_test: {mass_case_test.shape}')
 
-dicom_data_csv = pd.read_csv('/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/dicom_info.csv')
-image_directory = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/jpeg'
+dicom_data_csv = pd.read_csv('/Downloads/Breast Cancer Image Dataset/csv/dicom_info.csv')
+image_directory = '/Downloads/Breast Cancer Image Dataset/jpeg'
 print(dicom_data_csv.head())
 
 dicom_data_csv.drop(['PatientBirthDate','AccessionNumber','Columns','ContentDate','ContentTime','PatientSex','PatientBirthDate',
