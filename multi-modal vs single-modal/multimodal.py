@@ -5,14 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import cv2
 import tensorflow as tf
-import cv2
 from sklearn.model_selection import train_test_split
 from keras.utils import to_categorical
 from PIL import Image
 from PIL import ImageEnhance
-from keras.preprocessing.image import img_to_array, load_img, ImageDataGenerator
+from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Model, Sequential
-from keras.layers import Dense, Dropout, Input
+from keras.layers import Dense, Dropout, Input, concatenate
 from torchvision import transforms
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
@@ -21,8 +20,11 @@ from keras.models import Model
 from keras.optimizers import Adam
 
 
-mass_case_train = '/kaggle/input/cbis-ddsm-breast-cancer-image-dataset/csv/mass_case_description_train_set.csv'
-mass_case_test = '/kaggle/input/cbis-ddsm-breast-cancer-image-dataset/csv/mass_case_description_test_set.csv'
+mass_case_train_path = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_train_set.csv'
+mass_case_test_path = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_test_set.csv'
+
+mass_case_train = pd.read_csv(mass_case_train_path)
+mass_case_test = pd.read_csv(mass_case_test_path)
 
 print(mass_case_train.head())
 print(mass_case_test.head())
@@ -67,8 +69,8 @@ print(mass_case_test.isna().sum())
 print(f'Shape of mass_train: {mass_case_train.shape}')
 print(f'Shape of mass_test: {mass_case_test.shape}')
 
-dicom_data_csv = pd.read_csv('/kaggle/input/cbis-ddsm-breast-cancer-image-dataset/csv/dicom_info.csv')
-image_directory = '/kaggle/input/cbis-ddsm-breast-cancer-image-dataset/jpeg'
+dicom_data_csv = pd.read_csv('/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/dicom_info.csv')
+image_directory = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/jpeg'
 print(dicom_data_csv.head())
 
 dicom_data_csv.drop(['PatientBirthDate','AccessionNumber','Columns','ContentDate','ContentTime','PatientSex','PatientBirthDate',
@@ -99,18 +101,18 @@ cropped_images_dict=dict()
 ROI_mask_images_dict=dict()
 
 for data1 in full_mammo_images:
-    key=data1.split("/")[5]
+    key=data1.split("/")[6]
     full_mammo_images_dict[key]=data1 
 for data1 in cropped_images:
-    key=data1.split("/")[5]
+    key=data1.split("/")[6]
     cropped_images_dict[key]=data1   
 for data1 in ROI_mask_images:
-    key=data1.split("/")[5]
+    key=data1.split("/")[6]
     ROI_mask_images_dict[key]=data1 
     
     
 # view keys
-next(iter((full_mammo_images_dict.items())))
+print(next(iter((full_mammo_images_dict.items()))))
 
 def fix_image_path(data):
     for i, img in enumerate(data.values):
@@ -128,6 +130,9 @@ def fix_image_path(data):
             
 fix_image_path(mass_case_train)
 fix_image_path(mass_case_test)
+
+print(mass_case_test.head())
+print(mass_case_train.head())
 
 value = mass_case_train['pathology'].value_counts()
 print(value)
@@ -204,7 +209,7 @@ mapper={'MALIGNANT': 1, 'BENIGN': 0, 'BENIGN_WITHOUT_CALLBACK': 0}
 full_mass_df['pathology'] = full_mass_df['pathology'].replace(mapper)
 
 # List of columns to drop
-columns_to_drop = ['patient_id', 'abnormality_id','assessment','subtlety', 'image_file_path', 'cropped_image_file_path', 'ROI_mask_file_path']
+columns_to_drop = ['patient_id', 'abnormality_id','assessment','subtlety', 'cropped_image_file_path', 'ROI_mask_file_path']
 
 # Drop the specified columns
 full_mass_df = full_mass_df.drop(columns=columns_to_drop)
@@ -217,10 +222,22 @@ for col in categorical_columns:
     full_mass_df[col] = label_encoders[col].fit_transform(full_mass_df[col])
 
 print(full_mass_df.head())
+print(full_mass_df.columns)
+
+preprocessed_images = full_mass_df['processed_images'].values
+print(preprocessed_images[0].shape)
 
 vgg16 = VGG16(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 
 def extract_features(processed_image):
+    print(processed_image.shape)
+    if processed_image.shape[-1] != 3:
+        processed_image = np.stack((processed_image,) * 3, axis=-1)
+
+    # Ensure the image has a batch dimension
+    if len(processed_image.shape) == 3:
+        processed_image = np.expand_dims(processed_image, axis=0)
+
     image = preprocess_input(processed_image)
     features = vgg16.predict(image)
     return features.flatten()
@@ -230,36 +247,44 @@ image_features_list = [extract_features(preprocessed_image) for preprocessed_ima
 image_features = np.array(image_features_list)
 
 csv_data  = full_mass_df.copy()
-csv_data = csv_data.drop(columns=['processed_images', 'pathology'])
+additional_features = csv_data.drop(columns=['image_file_path', 'pathology', 'processed_images']).values
 
+labels = full_mass_df['pathology'].values
+if labels.dtype == 'object':
+    le = LabelEncoder()
+    labels = le.fit_transform(labels)
+
+# Convert labels to numpy array of float32
+labels = np.array(labels, dtype=np.float32)
+# Scale additional features
 scaler = StandardScaler()
-csv_data = pd.DataFrame(scaler.fit_transform(csv_data), columns=csv_data.columns)
-csv_features = csv_data.values
+additional_features = scaler.fit_transform(additional_features)
 
-# Combine CSV and image features
-combined_features = np.hstack((csv_features, image_features))
+# # Split data into train and test sets
+X_img_train, X_img_test, X_add_train, X_add_test, y_train, y_test = train_test_split(
+    image_features, additional_features, labels, test_size=0.2, random_state=42)
 
-input_shape = combined_features.shape[1]
 
-input_layer = Input(shape=(input_shape,))
-dense_layer_1 = Dense(512, activation='relu')(input_layer)
-dropout_layer = Dropout(0.5)(dense_layer_1)
-output_layer = Dense(1, activation='sigmoid')(dropout_layer)
+# Create input layers for both image and additional features
+image_input = Input(shape=(X_img_train.shape[1],))
+additional_input = Input(shape=(X_add_train.shape[1],))
 
-combined_model = Model(inputs=input_layer, outputs=output_layer)
+# Concatenate image features with additional features
+merged = concatenate([image_input, additional_input])
+
+# Add a fully connected layer and output layer
+x = Dense(1024, activation='relu')(merged)
+predictions = Dense(1, activation='sigmoid')(x)  # Assuming binary classification
+
+# Define the model
+model = Model(inputs=[image_input, additional_input], outputs=predictions)
 
 # Compile the model
-combined_model.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
-
-labels = full_mass_df['pathology']
-
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(combined_features, labels, test_size=0.2, random_state=42)
-
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
 # Train the model
-combined_model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+model.fit([X_img_train, X_add_train], y_train, epochs=10, batch_size=32, validation_data=([X_img_test, X_add_test], y_test))
 
 # Evaluate the model
-loss, accuracy = combined_model.evaluate(X_test, y_test)
-print(f'Test accuracy: {accuracy}')
+loss, accuracy = model.evaluate([X_img_test, X_add_test], y_test)
+print(f'Test Loss: {loss}, Test Accuracy: {accuracy}')
