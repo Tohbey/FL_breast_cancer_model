@@ -11,13 +11,14 @@ from PIL import Image
 from PIL import ImageEnhance
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Model, Sequential
-from keras.layers import Dense, Dropout, Input, concatenate
+from keras.layers import Dense, Dropout, Input, concatenate, BatchNormalization
 from torchvision import transforms
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 from keras.applications.vgg16 import VGG16, preprocess_input
 from keras.models import Model
 from keras.optimizers import Adam
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 
 
 mass_case_train_path = '/Users/oluwatobilobafafowora/Downloads/Breast Cancer Image Dataset/csv/mass_case_description_train_set.csv'
@@ -265,6 +266,10 @@ X_img_train, X_img_test, X_add_train, X_add_test, y_train, y_test = train_test_s
     image_features, additional_features, labels, test_size=0.2, random_state=42)
 
 
+# Flatten the image features to match dense layers
+X_img_train = X_img_train.reshape(X_img_train.shape[0], -1)
+X_img_test = X_img_test.reshape(X_img_test.shape[0], -1)
+
 # Create input layers for both image and additional features
 image_input = Input(shape=(X_img_train.shape[1],))
 additional_input = Input(shape=(X_add_train.shape[1],))
@@ -274,6 +279,11 @@ merged = concatenate([image_input, additional_input])
 
 # Add a fully connected layer and output layer
 x = Dense(1024, activation='relu')(merged)
+x = BatchNormalization()(x)
+x = Dropout(0.5)(x)
+x = Dense(512, activation='relu')(x)
+x = BatchNormalization()(x)
+x = Dropout(0.5)(x)
 predictions = Dense(1, activation='sigmoid')(x)  # Assuming binary classification
 
 # Define the model
@@ -282,8 +292,13 @@ model = Model(inputs=[image_input, additional_input], outputs=predictions)
 # Compile the model
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-# Train the model
-model.fit([X_img_train, X_add_train], y_train, epochs=10, batch_size=32, validation_data=([X_img_test, X_add_test], y_test))
+# Use early stopping to prevent overfitting
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=3, min_lr=0.0001)
+
+# Train the model with more epochs
+history = model.fit([X_img_train, X_add_train], y_train, epochs=25, batch_size=32, 
+                    validation_data=([X_img_test, X_add_test], y_test), callbacks=[early_stopping, reduce_lr])
 
 # Evaluate the model
 loss, accuracy = model.evaluate([X_img_test, X_add_test], y_test)
